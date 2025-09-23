@@ -1,0 +1,9 @@
+litellm>=1.60.8
+openai>=1.61.1
+python-dotenv
+anthropic>=0.45.0
+requests
+tqdm
+redis
+pymongo
+upstash-redis

@@ -51,9 +51,9 @@ MODEL_CONFIGS: Dict[str, Dict[str, Any]] = {
     "anthropic_aws": {
         "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
         "fallback_model": "anthropic.claude-3-haiku-20240307-v1:0",
-        "aws_access_key_id": get_env_var("R2_ACCESS_KEY_ID"),
-        "aws_secret_access_key": get_env_var("R2_SECRET_ACCESS_KEY"),
-        "aws_region_name": get_env_var("R2_REGION"),
+        "aws_access_key_id": get_env_var("R2_ACCESS_KEY_ID", required=False),
+        "aws_secret_access_key": get_env_var("R2_SECRET_ACCESS_KEY", required=False),
+        "aws_region_name": get_env_var("R2_REGION", required=False),
         "max_tokens": 4096,
         "temperature": 0,
         "allowed_fails": 3,

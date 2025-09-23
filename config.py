@@ -3,8 +3,15 @@ Configuration module for HyDE Lambda
 """
 import os
 from pymongo import MongoClient
-import redis
 from typing import Any, Optional
+
+# Load .env file for local development only (not needed in Lambda)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available in Lambda environment, which is fine
+    pass
 
 
 def get_env_var(var_name: str, required: bool = True) -> Optional[str]:
@@ -16,25 +23,20 @@ def get_env_var(var_name: str, required: bool = True) -> Optional[str]:
 
 
 # MongoDB Configuration
-MONGODB_URI = get_env_var("MONGODB_URI")
-DB_NAME = get_env_var("MONGODB_DB_NAME", required=False) or "brace"
+MONGODB_URI = get_env_var("MONGO_URI")
+DB_NAME = get_env_var("MONGODB_DB_NAME", required=False) or "finalBackendDB"
 
 # Initialize MongoDB client
 mongo_client = MongoClient(MONGODB_URI)
 mongo_db = mongo_client[DB_NAME]
 
-# Redis Configuration  
-REDIS_HOST = get_env_var("REDIS_HOST", required=False) or "localhost"
-REDIS_PORT = int(get_env_var("REDIS_PORT", required=False) or "6379")
-REDIS_PASSWORD = get_env_var("REDIS_PASSWORD", required=False)
+# Redis Configuration (Upstash REST)
+UPSTASH_REDIS_REST_URL = get_env_var("UPSTASH_REDIS_REST_URL")
+UPSTASH_REDIS_REST_TOKEN = get_env_var("UPSTASH_REDIS_REST_TOKEN")
 
-# Initialize Redis client
-redis_client = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    password=REDIS_PASSWORD,
-    decode_responses=True
-)
+# Initialize Upstash Redis client
+from upstash_redis import Redis as UpstashRedis
+redis_client = UpstashRedis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
 
 # Admin API Key for authentication
 ADMIN_API_KEY = get_env_var("ADMIN_API_KEY", required=False)

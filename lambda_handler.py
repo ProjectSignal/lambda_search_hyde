@@ -80,18 +80,43 @@ async def lambda_handler(event, context):
 
         logger.info(f"Processing HyDE for searchId: {search_id}, query: {query}")
 
-        # Verify search document exists
+        # Get or create search document
         search_doc = searchOutputCollection.find_one({"_id": search_id})
         if not search_doc:
-            error_msg = f"Search document not found for searchId: {search_id}"
-            logger.error(error_msg)
-            return {
-                "statusCode": 404,
-                "body": json.dumps({
-                    "error": error_msg,
-                    "success": False
-                })
+            # Create initial search document (migration from searchInitializer)
+            logger.info(f"Creating initial search document for searchId: {search_id}")
+            now = datetime.utcnow()
+            search_doc = {
+                "_id": search_id,
+                "userId": user_id,
+                "query": query,
+                "flags": flags,
+                "status": SearchStatus.NEW,
+                "createdAt": now,
+                "updatedAt": now,
+                "events": [
+                    {
+                        "stage": "INIT",
+                        "message": "Search initiated",
+                        "timestamp": now
+                    }
+                ],
+                "metrics": {}
             }
+
+            try:
+                searchOutputCollection.insert_one(search_doc)
+                logger.info(f"Created initial search document: {search_id}")
+            except Exception as db_error:
+                error_msg = f"Failed to create search document: {str(db_error)}"
+                logger.error(error_msg)
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps({
+                        "error": error_msg,
+                        "success": False
+                    })
+                }
 
         # Get providers from flags or use defaults
         hyde_provider = flags.get('hyde_provider', 'groq_llama')

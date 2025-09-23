@@ -8,6 +8,7 @@ import asyncio
 import sys
 import os
 import uuid
+import argparse
 from datetime import datetime
 
 # Add current directory to path
@@ -22,7 +23,7 @@ def create_test_search_document():
         from db import searchOutputCollection
         
         search_id = str(uuid.uuid4())
-        user_id = "test_user_123"
+        user_id = "6797bf304791caa516f6da9e"  # Valid ObjectId for testing
         query = "Find machine learning experts with Python experience in San Francisco"
         
         now = datetime.utcnow()
@@ -75,7 +76,7 @@ def create_step_functions_event(search_id, user_id, query, flags):
         "flags": flags
     }
 
-async def test_hyde_lambda():
+async def test_hyde_lambda(keep_document=False):
     """Test the HyDE Lambda with Step Functions event format"""
 
     print("Testing HyDE Lambda...")
@@ -181,28 +182,41 @@ def cleanup_test_document(search_id):
         print(f"⚠️  Could not clean up test document: {str(e)}")
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Test HyDE Lambda function')
+    parser.add_argument('--keep', action='store_true',
+                       help='Keep the test document after completion (for pipeline testing)')
+    args = parser.parse_args()
+
     print("🚀 Starting HyDE Lambda Test")
-    
+    if args.keep:
+        print("📌 Keep mode: Test document will NOT be deleted after completion")
+
     # Run the test
-    result = asyncio.run(test_hyde_lambda())
+    result = asyncio.run(test_hyde_lambda(keep_document=args.keep))
 
     print("\n" + "=" * 50)
-    
+
     if result and result['statusCode'] == 200:
         print("🎉 HyDE Lambda test completed successfully!")
-        
-        # Extract searchId from result for cleanup
+
+        # Extract searchId from result for cleanup or reporting
         try:
             if isinstance(result['body'], str):
                 body = json.loads(result['body'])
             else:
                 body = result['body']
             search_id = body.get('searchId')
+
             if search_id:
-                cleanup_test_document(search_id)
+                if args.keep:
+                    print(f"✅ Test document preserved with searchId: {search_id}")
+                    print(f"💡 Use this searchId for fetch testing: --search-id {search_id}")
+                else:
+                    cleanup_test_document(search_id)
         except:
             pass
-            
+
         sys.exit(0)
     else:
         print("💥 HyDE Lambda test failed!")

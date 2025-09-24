@@ -18,25 +18,11 @@ from prompts.descriptionForLocationNew import location_message as location_messa
 from prompts.descriptionForKeyword import keyword_message, stop_sequences as keyword_stop_sequences
 from db import r
 from llm_helper import LLMManager
-###############################################################################
-# HELPER FUNCTIONS: TEXT NORMALIZATION
-###############################################################################
-def normalize_text(text: str) -> str:
-    """
-    Convert text to a normalized form to ensure consistent Redis keys.
-    - Converts to lowercase
-    - Removes special characters (except spaces)
-    - Replaces multiple spaces with single space
-    - Removes leading/trailing whitespace
-    """
-    if not text:
-        return ""
-    text = text.strip().lower()
-    # Replace special characters (including :) with spaces
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
-    # Replace multiple spaces with single space
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
+# Import shared utilities
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from shared_utils import normalize_text
 
 
 ###############################################################################

@@ -724,8 +724,8 @@ class HydeReasoning:
                 nm = skill_item.get("name", "")
                 desc_obj = skill_map.get(nm, {})
                 skill_item["description"] = desc_obj.get("description", "")
-                if "embeddings" in desc_obj:
-                    skill_item["embeddings"] = desc_obj["embeddings"]
+                # Pass Redis cache key instead of embeddings for efficient retrieval in Fetch
+                skill_item["cache_key"] = f"skill:{normalize_text(nm)}"
 
                 if alternative_skills:
                     roles = skill_item.get("relatedRoles", [])
@@ -741,10 +741,10 @@ class HydeReasoning:
                         r_desc = skill_map.get(r_name, {})
                         updated_role = {
                             "name": r_name,
-                            "description": r_desc.get("description", "")
+                            "description": r_desc.get("description", ""),
+                            # Pass Redis cache key for efficient retrieval in Fetch
+                            "cache_key": f"skill:{normalize_text(r_name)}"
                         }
-                        if "embeddings" in r_desc:
-                            updated_role["embeddings"] = r_desc["embeddings"]
                         new_related.append(updated_role)
                     skill_item["relatedRoles"] = new_related
 

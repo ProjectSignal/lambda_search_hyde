@@ -18,11 +18,7 @@ from prompts.descriptionForLocationNew import location_message as location_messa
 from prompts.descriptionForKeyword import keyword_message, stop_sequences as keyword_stop_sequences
 from db import r
 from llm_helper import LLMManager
-# Import shared utilities
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from shared_utils import normalize_text
+from utils import normalize_text
 
 
 ###############################################################################

@@ -8,7 +8,12 @@ from dotenv import load_dotenv
 
 from hyde_logic import HydeReasoning
 from logging_config import setup_logger
-from db import searchOutputCollection
+from api_client import (
+    create_search_document,
+    get_search_document,
+    update_search_document,
+    SearchServiceError,
+)
 
 # Load environment variables (for local testing)
 load_dotenv()
@@ -81,7 +86,7 @@ async def lambda_handler(event, context):
         logger.info(f"Processing HyDE for searchId: {search_id}, query: {query}")
 
         # Get or create search document
-        search_doc = searchOutputCollection.find_one({"_id": search_id})
+        search_doc = get_search_document(search_id)
         if not search_doc:
             # Create initial search document (migration from searchInitializer)
             logger.info(f"Creating initial search document for searchId: {search_id}")
@@ -105,10 +110,10 @@ async def lambda_handler(event, context):
             }
 
             try:
-                searchOutputCollection.insert_one(search_doc)
+                create_search_document(search_doc)
                 logger.info(f"Created initial search document: {search_id}")
-            except Exception as db_error:
-                error_msg = f"Failed to create search document: {str(db_error)}"
+            except SearchServiceError as api_error:
+                error_msg = f"Failed to create search document: {str(api_error)}"
                 logger.error(error_msg)
                 return {
                     "statusCode": 500,
@@ -151,10 +156,10 @@ async def lambda_handler(event, context):
 
         # Update searchOutput collection with HyDE results (idempotent)
         now = datetime.utcnow()
-        update_result = searchOutputCollection.update_one(
-            {"_id": search_id, "status": {"$in": [SearchStatus.NEW, SearchStatus.HYDE_COMPLETE]}},
-            {
-                "$set": {
+        try:
+            update_search_document(
+                search_id,
+                set_fields={
                     "hydeAnalysis": {
                         "queryBreakdown": hyde_result.get("query_breakdown", {}),
                         "response": hyde_result.get("response", {}),
@@ -164,23 +169,21 @@ async def lambda_handler(event, context):
                     "metrics.hydeMs": hyde_time * 1000,
                     "updatedAt": now
                 },
-                "$addToSet": {
-                    "events": {
+                append_events=[
+                    {
                         "id": f"HYDE:{search_id}",
-                        "stage": "HYDE", 
+                        "stage": "HYDE",
                         "message": "HyDE analysis completed",
                         "timestamp": now
                     }
-                }
-            }
-        )
-
-        if update_result.matched_count == 0:
+                ],
+                expected_statuses=[SearchStatus.NEW, SearchStatus.HYDE_COMPLETE],
+            )
+        except SearchServiceError as update_error:
             # Check if document already in HYDE_COMPLETE status (idempotent retry)
-            existing_doc = searchOutputCollection.find_one({"_id": search_id})
+            existing_doc = get_search_document(search_id)
             if existing_doc and existing_doc.get("status") == SearchStatus.HYDE_COMPLETE:
                 logger.info(f"Search document {search_id} already processed (idempotent retry)")
-                # Return success since work is already done
                 total_time = time.time() - start_time
                 return {
                     "statusCode": 200,
@@ -192,16 +195,16 @@ async def lambda_handler(event, context):
                         "note": "Already processed (idempotent)"
                     })
                 }
-            else:
-                error_msg = f"Failed to update search document for searchId: {search_id} - invalid status transition"
-                logger.error(error_msg)
-                return {
-                    "statusCode": 409,  # Conflict status
-                    "body": json.dumps({
-                        "error": error_msg,
-                        "success": False
-                    })
-                }
+
+            error_msg = f"Failed to update search document for searchId: {search_id} - {update_error}"
+            logger.error(error_msg)
+            return {
+                "statusCode": 409,
+                "body": json.dumps({
+                    "error": error_msg,
+                    "success": False
+                })
+            }
 
         logger.info(f"Updated search document {search_id} with HyDE results")
 
@@ -226,29 +229,27 @@ async def lambda_handler(event, context):
         if 'search_id' in locals():
             try:
                 now = datetime.utcnow()
-                searchOutputCollection.update_one(
-                    {"_id": search_id},
-                    {
-                        "$set": {
-                            "status": SearchStatus.ERROR,
-                            "error": {
-                                "stage": "HYDE",
-                                "message": str(e),
-                                "stackTrace": traceback.format_exc(),
-                                "occurredAt": now
-                            },
-                            "updatedAt": now
+                update_search_document(
+                    search_id,
+                    set_fields={
+                        "status": SearchStatus.ERROR,
+                        "error": {
+                            "stage": "HYDE",
+                            "message": str(e),
+                            "stackTrace": traceback.format_exc(),
+                            "occurredAt": now
                         },
-                        "$push": {
-                            "events": {
-                                "stage": "HYDE",
-                                "message": f"Error: {str(e)}",
-                                "timestamp": now
-                            }
+                        "updatedAt": now
+                    },
+                    append_events=[
+                        {
+                            "stage": "HYDE",
+                            "message": f"Error: {str(e)}",
+                            "timestamp": now
                         }
-                    }
+                    ],
                 )
-            except Exception as db_error:
+            except SearchServiceError as db_error:
                 logger.error(f"Failed to update error state: {db_error}")
 
         total_time = time.time() - start_time
@@ -284,9 +285,8 @@ if __name__ == "__main__":
 
     # Create initial search document for testing
     try:
-        from db import searchOutputCollection
         now = datetime.utcnow()
-        searchOutputCollection.insert_one({
+        create_search_document({
             "_id": test_event["searchId"],
             "userId": test_event["userId"],
             "query": test_event["query"],
@@ -298,7 +298,7 @@ if __name__ == "__main__":
             "metrics": {}
         })
         print(f"Created test search document: {test_event['searchId']}")
-    except Exception as e:
+    except SearchServiceError as e:
         print(f"Warning: Could not create test document: {e}")
 
     # Run the handler

@@ -2,7 +2,7 @@
 
 from quart import request, jsonify
 from bson import ObjectId
-from db import users_collection
+from api_client import get_user_document, SearchServiceError
 from config import ADMIN_API_KEY
 from logging_config import setup_logger
 from quart_jwt_extended import verify_jwt_in_request, get_jwt_identity
@@ -49,17 +49,19 @@ async def authenticate_request(return_data=False, require_user_id=True):
         
         # Validate if the user_id exists in the database
         try:
-            if not users_collection.find_one({"_id": ObjectId(user_id)}):
-                error_response = jsonify(message="Invalid 'user_id' provided.")
-                if return_data:
-                    return False, None, error_response, 404, None
-                return False, None, error_response, 404
-        except Exception as e:
-            logger.error(f"Invalid ObjectId format for user_id: {user_id}, error: {str(e)}")
-            error_response = jsonify(message="Invalid 'user_id' format. Must be a valid ObjectId.")
+            user_doc = get_user_document(user_id)
+        except SearchServiceError as exc:
+            logger.error("User lookup via API failed: %s", exc)
+            error_response = jsonify(message="Upstream user lookup failed")
             if return_data:
-                return False, None, error_response, 400, None
-            return False, None, error_response, 400
+                return False, None, error_response, 502, None
+            return False, None, error_response, 502
+
+        if not user_doc:
+            error_response = jsonify(message="Invalid 'user_id' provided.")
+            if return_data:
+                return False, None, error_response, 404, None
+            return False, None, error_response, 404
         
         # Success case for admin API key
         if return_data:

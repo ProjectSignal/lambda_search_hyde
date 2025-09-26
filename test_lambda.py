@@ -20,12 +20,12 @@ def create_test_search_document():
     """Create a test search document in NEW status for HyDE processing"""
     
     try:
-        from db import searchOutputCollection
-        
+        from api_client import create_search_document
+
         search_id = str(uuid.uuid4())
         user_id = "6797bf304791caa516f6da9e"  # Valid ObjectId for testing
         query = "Find machine learning experts based out of blr and graduated from iit"
-        
+
         now = datetime.utcnow()
         test_doc = {
             "_id": search_id,
@@ -53,16 +53,11 @@ def create_test_search_document():
             ],
             "metrics": {}
         }
-        
-        # Insert test document
-        result = searchOutputCollection.insert_one(test_doc)
-        if result.inserted_id:
-            print(f"✅ Created test search document: {search_id}")
-            return search_id, user_id, query, test_doc["flags"]
-        else:
-            print("❌ Failed to create test search document")
-            return None, None, None, None
-            
+
+        create_search_document(test_doc)
+        print(f"✅ Created test search document: {search_id}")
+        return search_id, user_id, query, test_doc["flags"]
+
     except Exception as e:
         print(f"❌ Error creating test search document: {str(e)}")
         return None, None, None, None
@@ -134,9 +129,9 @@ def validate_search_document_update(search_id):
     """Validate that the search document was properly updated with HyDE analysis"""
     
     try:
-        from db import searchOutputCollection
-        
-        doc = searchOutputCollection.find_one({"_id": search_id})
+        from api_client import get_search_document
+
+        doc = get_search_document(search_id)
         if not doc:
             print("❌ Search document not found")
             return False
@@ -175,8 +170,9 @@ def validate_search_document_update(search_id):
 def cleanup_test_document(search_id):
     """Clean up test document after test"""
     try:
-        from db import searchOutputCollection
-        searchOutputCollection.delete_one({"_id": search_id})
+        from api_client import delete_search_document
+
+        delete_search_document(search_id)
         print(f"🧹 Cleaned up test document: {search_id}")
     except Exception as e:
         print(f"⚠️  Could not clean up test document: {str(e)}")

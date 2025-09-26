@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from prompts.logicalHyde import exampleKeyword, messageKeyword
 from prompts.descriptionForLocationNew import location_message as location_message_new, stop_sequences as location_stop_sequences_new
 from prompts.descriptionForKeyword import keyword_message, stop_sequences as keyword_stop_sequences
-from db import r
+from config import redis_client as r
 from llm_helper import LLMManager
 from utils import normalize_text
 

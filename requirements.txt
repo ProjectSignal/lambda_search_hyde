@@ -5,5 +5,4 @@ anthropic>=0.45.0
 requests
 tqdm
 redis
-pymongo
 upstash-redis

@@ -22,7 +22,7 @@ logger = setup_logger(__name__)
 
 def get_utc_now():
     """Returns current UTC datetime in ISO format"""
-    return datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 class SearchStatus:
     """Search execution status tracking"""
@@ -90,20 +90,20 @@ async def lambda_handler(event, context):
         if not search_doc:
             # Create initial search document (migration from searchInitializer)
             logger.info(f"Creating initial search document for searchId: {search_id}")
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             search_doc = {
                 "_id": search_id,
                 "userId": user_id,
                 "query": query,
                 "flags": flags,
                 "status": SearchStatus.NEW,
-                "createdAt": now,
-                "updatedAt": now,
+                "createdAt": now.isoformat(),
+                "updatedAt": now.isoformat(),
                 "events": [
                     {
                         "stage": "INIT",
                         "message": "Search initiated",
-                        "timestamp": now
+                        "timestamp": now.isoformat()
                     }
                 ],
                 "metrics": {}
@@ -155,8 +155,9 @@ async def lambda_handler(event, context):
         logger.info(f"HyDE Analysis completed in {hyde_time:.2f} seconds")
 
         # Update searchOutput collection with HyDE results (idempotent)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         try:
+            logger.info(f"DEBUG: Calling update_search_document with search_id={search_id}, user_id={user_id}")
             update_search_document(
                 search_id,
                 set_fields={
@@ -167,14 +168,14 @@ async def lambda_handler(event, context):
                     },
                     "status": SearchStatus.HYDE_COMPLETE,
                     "metrics.hydeMs": hyde_time * 1000,
-                    "updatedAt": now
+                    "updatedAt": now.isoformat()
                 },
                 append_events=[
                     {
                         "id": f"HYDE:{search_id}",
                         "stage": "HYDE",
                         "message": "HyDE analysis completed",
-                        "timestamp": now
+                        "timestamp": now.isoformat()
                     }
                 ],
                 expected_statuses=[SearchStatus.NEW, SearchStatus.HYDE_COMPLETE],
@@ -228,7 +229,7 @@ async def lambda_handler(event, context):
         # Update search document with error state if we have searchId
         if 'search_id' in locals():
             try:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 update_search_document(
                     search_id,
                     set_fields={
@@ -237,15 +238,15 @@ async def lambda_handler(event, context):
                             "stage": "HYDE",
                             "message": str(e),
                             "stackTrace": traceback.format_exc(),
-                            "occurredAt": now
+                            "occurredAt": now.isoformat()
                         },
-                        "updatedAt": now
+                        "updatedAt": now.isoformat()
                     },
                     append_events=[
                         {
                             "stage": "HYDE",
                             "message": f"Error: {str(e)}",
-                            "timestamp": now
+                            "timestamp": now.isoformat()
                         }
                     ],
                 )
@@ -285,15 +286,15 @@ if __name__ == "__main__":
 
     # Create initial search document for testing
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         create_search_document({
             "_id": test_event["searchId"],
             "userId": test_event["userId"],
             "query": test_event["query"],
             "flags": test_event["flags"],
             "status": SearchStatus.NEW,
-            "createdAt": now,
-            "updatedAt": now,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
             "events": [],
             "metrics": {}
         })

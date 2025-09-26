@@ -105,5 +105,5 @@ Required environment variables:
 - `DEEPSEEK_API_KEY`
 - `REDIS_URL`
 - `MONGODB_URI`
-- `ADMIN_API_KEY`
+- `ADMIN_KEY`
 - Other configuration as defined in config.py# CI/CD Test - Thu Sep 25 18:17:55 IST 2025

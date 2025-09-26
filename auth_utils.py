@@ -3,7 +3,7 @@
 from quart import request, jsonify
 from bson import ObjectId
 from api_client import get_user_document, SearchServiceError
-from config import ADMIN_API_KEY
+from config import DATA_API_KEY
 from logging_config import setup_logger
 from quart_jwt_extended import verify_jwt_in_request, get_jwt_identity
 
@@ -25,7 +25,7 @@ async def authenticate_request(return_data=False, require_user_id=True):
     # Check for Admin API Key in headers first
     admin_api_key = request.headers.get("X-API-Key")
     if admin_api_key:
-        if admin_api_key != ADMIN_API_KEY:
+        if admin_api_key != DATA_API_KEY:
             error_response = jsonify(message="Invalid Admin API Key.")
             if return_data:
                 return False, None, error_response, 401, None

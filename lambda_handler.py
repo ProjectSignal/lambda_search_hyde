@@ -41,34 +41,10 @@ class SearchStatus:
     RANK_AND_REASONING_COMPLETE = "RANK_AND_REASONING_COMPLETE"
     ERROR = "ERROR"
 
-async def lambda_handler(event, context):
+async def _run(event):
     """
-    AWS Lambda handler for HyDE analysis service.
+    Main async execution logic for HyDE analysis.
     Uses searchOutput collection for state management.
-
-    Input:
-    {
-        "searchId": "uuid-string",
-        "userId": "user-id-string", 
-        "query": "search query string",
-        "flags": {
-            "hyde_provider": "groq_llama",
-            "description_provider": "groq_llama",
-            "alternative_skills": false,
-            "hyde_analysis_flags": {...},
-            "additional_context": {...}
-        }
-    }
-
-    Output:
-    {
-        "statusCode": 200,
-        "body": {
-            "searchId": "uuid-string",
-            "success": true,
-            "processing_time": float
-        }
-    }
     """
     logger.info("=== HyDE Lambda Handler ===")
     start_time = time.time()
@@ -276,6 +252,37 @@ async def lambda_handler(event, context):
             })
         }
 
+def lambda_handler(event, context):
+    """
+    AWS Lambda handler for HyDE analysis service - synchronous wrapper for async execution.
+    Uses searchOutput collection for state management.
+
+    Input:
+    {
+        "searchId": "uuid-string",
+        "userId": "user-id-string",
+        "query": "search query string",
+        "flags": {
+            "hyde_provider": "groq_llama",
+            "description_provider": "groq_llama",
+            "alternative_skills": false,
+            "hyde_analysis_flags": {...},
+            "additional_context": {...}
+        }
+    }
+
+    Output:
+    {
+        "statusCode": 200,
+        "body": {
+            "searchId": "uuid-string",
+            "success": true,
+            "processing_time": float
+        }
+    }
+    """
+    return asyncio.run(_run(event))
+
 # For local testing
 if __name__ == "__main__":
     import asyncio
@@ -314,5 +321,5 @@ if __name__ == "__main__":
         print(f"Warning: Could not create test document: {e}")
 
     # Run the handler
-    result = asyncio.run(lambda_handler(test_event, None))
+    result = lambda_handler(test_event, None)
     print(json.dumps(result, indent=2))

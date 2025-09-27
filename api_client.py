@@ -37,7 +37,13 @@ def _parse_response(response: requests.Response) -> Dict[str, Any]:
     return payload
 
 
-def get_search_document(search_id: str) -> Optional[Dict[str, Any]]:
+def _user_params(user_id: str) -> Dict[str, str]:
+    if not user_id:
+        raise ValueError("user_id is required for search API calls")
+    return {"userId": str(user_id)}
+
+
+def get_search_document(search_id: str, *, user_id: str) -> Optional[Dict[str, Any]]:
     """
     Retrieve the persisted search document for a given search identifier.
 
@@ -46,7 +52,12 @@ def get_search_document(search_id: str) -> Optional[Dict[str, Any]]:
     """
     url = f"{DATA_API_BASE_URL}/search/{search_id}"
     try:
-        response = requests.get(url, headers=_build_headers(), timeout=SEARCH_API_TIMEOUT)
+        response = requests.get(
+            url,
+            headers=_build_headers(),
+            params=_user_params(user_id),
+            timeout=SEARCH_API_TIMEOUT,
+        )
     except requests.RequestException as exc:  # pragma: no cover - network failure guard
         raise SearchServiceError(f"Failed to retrieve search {search_id}: {exc}") from exc
 
@@ -67,6 +78,11 @@ def create_search_document(payload: Dict[str, Any]) -> Dict[str, Any]:
     Input: ``payload`` dict mirroring the search document schema expected by the platform.
     Output: Dict describing the created entity as returned by the upstream API.
     """
+    if not payload.get("userId") and payload.get("user_id"):
+        payload["userId"] = payload.pop("user_id")
+    if not payload.get("userId"):
+        raise ValueError("create_search_document payload must include userId")
+
     url = f"{DATA_API_BASE_URL}/search"
     try:
         response = requests.post(
@@ -107,7 +123,7 @@ def get_user_document(user_id: str) -> Optional[Dict[str, Any]]:
     return _parse_response(response)
 
 
-def delete_search_document(search_id: str) -> None:
+def delete_search_document(search_id: str, *, user_id: str) -> None:
     """
     Remove a test search document, primarily used by local validation scripts.
 
@@ -115,7 +131,12 @@ def delete_search_document(search_id: str) -> None:
     """
     url = f"{DATA_API_BASE_URL}/search/{search_id}"
     try:
-        response = requests.delete(url, headers=_build_headers(), timeout=SEARCH_API_TIMEOUT)
+        response = requests.delete(
+            url,
+            headers=_build_headers(),
+            params=_user_params(user_id),
+            timeout=SEARCH_API_TIMEOUT,
+        )
     except requests.RequestException as exc:  # pragma: no cover
         raise SearchServiceError(f"Failed to delete search {search_id}: {exc}") from exc
 
@@ -130,6 +151,7 @@ def delete_search_document(search_id: str) -> None:
 def update_search_document(
     search_id: str,
     *,
+    user_id: str,
     set_fields: Optional[Dict[str, Any]] = None,
     append_events: Optional[Sequence[Dict[str, Any]]] = None,
     expected_statuses: Optional[Sequence[str]] = None,
@@ -144,7 +166,7 @@ def update_search_document(
         ``expected_statuses`` – optional list of allowed current statuses that must match upstream state.
     Output: Dict representing the updated search document snapshot returned by the API.
     """
-    payload: Dict[str, Any] = {}
+    payload: Dict[str, Any] = {"userId": str(user_id)}
     if set_fields:
         payload["set"] = set_fields
     if append_events:

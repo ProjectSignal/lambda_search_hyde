@@ -24,6 +24,15 @@ def get_utc_now():
     """Returns current UTC datetime in ISO format"""
     return datetime.now(timezone.utc).isoformat()
 
+
+def _normalize_user_id(raw_user_id):
+    if isinstance(raw_user_id, dict) and "$oid" in raw_user_id:
+        raw_user_id = raw_user_id["$oid"]
+    if raw_user_id is None:
+        return None
+    user_id_str = str(raw_user_id).strip()
+    return user_id_str or None
+
 class SearchStatus:
     """Search execution status tracking"""
     NEW = "NEW"
@@ -67,7 +76,7 @@ async def lambda_handler(event, context):
     try:
         # Parse the input event - Step Functions passes direct objects
         search_id = event.get('searchId')
-        user_id = event.get('userId')  
+        user_id = _normalize_user_id(event.get('userId') or event.get('user_id'))
         query = event.get('query')
         flags = event.get('flags', {})
 
@@ -86,7 +95,7 @@ async def lambda_handler(event, context):
         logger.info(f"Processing HyDE for searchId: {search_id}, query: {query}")
 
         # Get or create search document
-        search_doc = get_search_document(search_id)
+        search_doc = get_search_document(search_id, user_id=user_id)
         if not search_doc:
             # Create initial search document (migration from searchInitializer)
             logger.info(f"Creating initial search document for searchId: {search_id}")
@@ -160,6 +169,7 @@ async def lambda_handler(event, context):
             logger.info(f"DEBUG: Calling update_search_document with search_id={search_id}, user_id={user_id}")
             update_search_document(
                 search_id,
+                user_id=user_id,
                 set_fields={
                     "hydeAnalysis": {
                         "queryBreakdown": hyde_result.get("query_breakdown", {}),
@@ -182,7 +192,7 @@ async def lambda_handler(event, context):
             )
         except SearchServiceError as update_error:
             # Check if document already in HYDE_COMPLETE status (idempotent retry)
-            existing_doc = get_search_document(search_id)
+            existing_doc = get_search_document(search_id, user_id=user_id)
             if existing_doc and existing_doc.get("status") == SearchStatus.HYDE_COMPLETE:
                 logger.info(f"Search document {search_id} already processed (idempotent retry)")
                 total_time = time.time() - start_time
@@ -227,11 +237,12 @@ async def lambda_handler(event, context):
         logger.error(f"Error in HyDE Lambda: {str(e)}", exc_info=True)
         
         # Update search document with error state if we have searchId
-        if 'search_id' in locals():
+        if 'search_id' in locals() and 'user_id' in locals() and user_id:
             try:
                 now = datetime.now(timezone.utc)
                 update_search_document(
                     search_id,
+                    user_id=user_id,
                     set_fields={
                         "status": SearchStatus.ERROR,
                         "error": {

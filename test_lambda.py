@@ -24,7 +24,8 @@ def create_test_search_document():
 
         search_id = str(uuid.uuid4())
         user_id = "6797bf304791caa516f6da9e"  # Valid ObjectId for testing
-        query = "Find machine learning experts based out of blr and graduated from iit"
+        # query = "Find machine learning experts based out of blr and graduated from iit"
+        query = "Find machine learning experts with Python experience in San Francisco"
 
         now = datetime.now(timezone.utc)
         test_doc = {
@@ -83,7 +84,7 @@ async def test_hyde_lambda(keep_document=False):
     
     if not search_id:
         print("❌ Cannot proceed without test search document")
-        return None
+        return None, None, None
 
     # Step 2: Create Step Functions event
     test_event = create_step_functions_event(search_id, user_id, query, flags)
@@ -115,23 +116,26 @@ async def test_hyde_lambda(keep_document=False):
         # Step 4: Validate search document was updated
         if result['statusCode'] == 200:
             print("\n4. Validating search document update...")
-            validate_search_document_update(search_id)
+            validate_search_document_update(search_id, user_id)
 
-        return result
+            if not keep_document:
+                cleanup_test_document(search_id, user_id)
+
+        return result, search_id, user_id
 
     except Exception as e:
         print(f"\n❌ Error running lambda: {str(e)}")
         import traceback
         traceback.print_exc()
-        return None
+        return None, None, None
 
-def validate_search_document_update(search_id):
+def validate_search_document_update(search_id, user_id):
     """Validate that the search document was properly updated with HyDE analysis"""
     
     try:
         from api_client import get_search_document
 
-        doc = get_search_document(search_id)
+        doc = get_search_document(search_id, user_id=user_id)
         if not doc:
             print("❌ Search document not found")
             return False
@@ -167,12 +171,12 @@ def validate_search_document_update(search_id):
         print(f"   ❌ Error validating document: {str(e)}")
         return False
 
-def cleanup_test_document(search_id):
+def cleanup_test_document(search_id, user_id):
     """Clean up test document after test"""
     try:
         from api_client import delete_search_document
 
-        delete_search_document(search_id)
+        delete_search_document(search_id, user_id=user_id)
         print(f"🧹 Cleaned up test document: {search_id}")
     except Exception as e:
         print(f"⚠️  Could not clean up test document: {str(e)}")
@@ -189,7 +193,7 @@ if __name__ == "__main__":
         print("📌 Keep mode: Test document will NOT be deleted after completion")
 
     # Run the test
-    result = asyncio.run(test_hyde_lambda(keep_document=args.keep))
+    result, search_id, user_id = asyncio.run(test_hyde_lambda(keep_document=args.keep))
 
     print("\n" + "=" * 50)
 
@@ -202,14 +206,14 @@ if __name__ == "__main__":
                 body = json.loads(result['body'])
             else:
                 body = result['body']
-            search_id = body.get('searchId')
+            search_id = body.get('searchId') or search_id
 
             if search_id:
                 if args.keep:
                     print(f"✅ Test document preserved with searchId: {search_id}")
+                    if user_id:
+                        print(f"UserId for preserved search: {user_id}")
                     print(f"💡 Use this searchId for fetch testing: --search-id {search_id}")
-                else:
-                    cleanup_test_document(search_id)
         except:
             pass
 

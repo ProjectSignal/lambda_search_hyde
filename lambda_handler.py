@@ -25,6 +25,7 @@ def get_utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+
 def _normalize_user_id(raw_user_id):
     if isinstance(raw_user_id, dict) and "$oid" in raw_user_id:
         raw_user_id = raw_user_id["$oid"]
@@ -199,7 +200,7 @@ async def _run(event):
         total_time = time.time() - start_time
 
         # Return lightweight response
-        return {
+        response = {
             "statusCode": 200,
             "body": json.dumps({
                 "searchId": search_id,
@@ -208,6 +209,10 @@ async def _run(event):
                 "timestamp": get_utc_now()
             })
         }
+
+        # Small delay to let any background HTTP clients cleanup naturally
+        await asyncio.sleep(0.1)
+        return response
 
     except Exception as e:
         logger.error(f"Error in HyDE Lambda: {str(e)}", exc_info=True)
@@ -241,6 +246,9 @@ async def _run(event):
                 logger.error(f"Failed to update error state: {db_error}")
 
         total_time = time.time() - start_time
+
+        # Small delay to let any background HTTP clients cleanup naturally
+        await asyncio.sleep(0.1)
 
         return {
             "statusCode": 500,
